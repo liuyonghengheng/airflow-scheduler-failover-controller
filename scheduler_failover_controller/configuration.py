@@ -3,6 +3,7 @@ import socket
 import sys
 import logging
 from six.moves import configparser
+from airflow import configuration
 
 def get_airflow_home_dir():
     return os.environ['AIRFLOW_HOME'] if "AIRFLOW_HOME" in os.environ else os.path.expanduser("~/airflow")
@@ -107,7 +108,8 @@ class Configuration:
         return self.get_config("scheduler_failover", option, default)
 
     def get_smtp_config(self, option, default=None):
-        return self.get_config("smtp", option, default)
+        # return self.get_config("smtp", option, default)
+        return configuration.get("smtp", option, default)
 
     def get_logging_level(self):
         return logging.getLevelName(self.get_scheduler_failover_config("LOGGING_LEVEL", DEFAULT_LOGGING_LEVEL))
@@ -118,7 +120,8 @@ class Configuration:
         return logging_dir + logging_file_name if logging_dir is not None and logging_file_name is not None else None
 
     def get_sql_alchemy_conn(self):
-        return self.get_config("core", "SQL_ALCHEMY_CONN")
+        # return self.get_config("core", "SQL_ALCHEMY_CONN")
+        return configuration.get("core", "SQL_ALCHEMY_CONN")
 
     def get_metadata_type(self):
         return self.get_scheduler_failover_config("METADATA_SERVICE_TYPE", DEFAULT_METADATA_SERVICE_TYPE)
