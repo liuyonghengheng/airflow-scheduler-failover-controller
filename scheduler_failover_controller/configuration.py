@@ -5,6 +5,49 @@ import logging
 from six.moves import configparser
 from airflow import configuration
 
+# from cryptography.fernet import Fernet
+from Crypto.Cipher import AES
+
+
+def generate_fernet_key():
+    try:
+        from cryptography.fernet import Fernet
+    except ImportError:
+        return ''
+    else:
+        return Fernet.generate_key().decode()
+
+
+def __pad(text):
+    """padding text, base on multiples of 16"""
+    text_length = len(bytes(text, encoding="utf-8"))
+    amount_to_pad = AES.block_size - (text_length % AES.block_size)
+    if amount_to_pad == 0:
+        amount_to_pad = AES.block_size
+    pad = chr(amount_to_pad)
+    return text + pad * amount_to_pad
+
+
+def __unpad(text):
+    pad = ord(text[-1])
+    return text[:-pad]
+
+
+def encrypt(raw, key):
+    raw = __pad(raw)
+    key = bytes.fromhex(key)
+    cipher = AES.new(key, AES.MODE_ECB)
+    result = cipher.encrypt(raw.encode("utf-8"))
+    return result.hex()
+
+
+def decrypt(enc, key):
+    key = bytes.fromhex(key)
+    cipher = AES.new(key, AES.MODE_ECB)
+    enc_byte_arr = bytes.fromhex(enc)
+    return __unpad(cipher.decrypt(enc_byte_arr).decode("utf-8"))
+
+
 def get_airflow_home_dir():
     return os.environ['AIRFLOW_HOME'] if "AIRFLOW_HOME" in os.environ else os.path.expanduser("~/airflow")
 
@@ -16,6 +59,8 @@ DEFAULT_LOGS_ROTATE_WHEN = "midnight"
 DEFAULT_LOGS_ROTATE_BACKUP_COUNT = 7
 DEFAULT_RETRY_COUNT_BEFORE_ALERTING = 5
 DEFAULT_ALERT_EMAIL_SUBJECT = "Airflow Alert - Scheduler Failover Controller Failed to Startup Scheduler"
+DEFAULT_IS_AUTHENTICATE = False
+DEFAULT_IS_ENCRYPTED = False
 
 DEFAULT_SCHEDULER_FAILOVER_CONTROLLER_CONFIGS = """
 [scheduler_failover]
@@ -66,6 +111,19 @@ alert_to_email = airflow@airflow.com
 # Email Subject to use when sending an alert
 alert_email_subject = """ + str(DEFAULT_ALERT_EMAIL_SUBJECT) + """
 
+# whether to authenticate ssh (use password)
+is_authenticate = """ + str(DEFAULT_IS_AUTHENTICATE) + """
+
+# whether to encrypt ssh password
+is_encrypted = """ + str(DEFAULT_IS_ENCRYPTED) + """
+
+# ssh pass word, if is_authenticate value is False ,can not give this value
+# if is_encrypted value is True ,you should give a encrypted value
+pass_word = 
+
+# 
+crypt_key=
+
 """
 
 
@@ -80,7 +138,7 @@ class Configuration:
         self.airflow_config_file_path = airflow_config_file_path
 
         if not os.path.isfile(airflow_config_file_path):
-            print ("Cannot find Airflow Configuration file at '" + str(airflow_config_file_path) + "'!!!")
+            print("Cannot find Airflow Configuration file at '" + str(airflow_config_file_path) + "'!!!")
             sys.exit(1)
 
         self.conf = configparser.RawConfigParser()
@@ -179,6 +237,40 @@ class Configuration:
 
     def get_alert_email_subject(self):
         return self.get_scheduler_failover_config("ALERT_EMAIL_SUBJECT", DEFAULT_ALERT_EMAIL_SUBJECT)
+
+    def get_is_authenticate(self):
+        return self.get_scheduler_failover_boolean("IS_AUTHENTICATE", DEFAULT_IS_AUTHENTICATE)
+
+    def get_is_encrypted(self):
+        return self.get_scheduler_failover_boolean("IS_ENCRYPTED", DEFAULT_IS_ENCRYPTED)
+
+    def get_crypt_key(self):
+        return self.get_scheduler_failover_config("CRYPT_KEY")
+
+    def get_raw_pass_word(self):
+        return self.get_scheduler_failover_config("PASS_WORD")
+
+    def set_pass_word(self):
+        if self.get_is_authenticate():
+            pass_word = self.get_raw_pass_word()
+            if self.get_is_encrypted():
+                fernet_key = self.get_crypt_key()
+                pass_word = decrypt(pass_word, fernet_key)
+            print("PASS WORD !!!!{}".format(pass_word))
+            self.conf.set("scheduler_failover", "PASS_WORD", pass_word)
+
+    def get_scheduler_failover_boolean(self, key, default_value=None):
+        val = str(self.get_scheduler_failover_config(key, default_value)).lower().strip()
+        if '#' in val:
+            val = val.split('#')[0].strip()
+        if val in ('t', 'true', '1'):
+            return True
+        elif val in ('f', 'false', '0'):
+            return False
+        else:
+            raise ValueError(
+                'The value for configuration option "{}:{}" is not a '
+                'boolean (received "{}").'.format("scheduler_failover", key, val))
 
     def add_default_scheduler_failover_configs_to_airflow_configs(self, venv_command):
         with open(self.airflow_config_file_path, 'r') as airflow_config_file:

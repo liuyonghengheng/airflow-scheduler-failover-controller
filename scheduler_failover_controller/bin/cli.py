@@ -10,6 +10,7 @@ import scheduler_failover_controller
 import argparse
 
 configuration = Configuration()
+configuration.set_pass_word()
 logger = get_logger(
     logging_level=configuration.get_logging_level(),
     logs_output_file_path=configuration.get_logs_output_file_path(),
@@ -52,7 +53,7 @@ def test_connection(args):
     scheduler_nodes_in_cluster = configuration.get_scheduler_nodes_in_cluster()
     for host in scheduler_nodes_in_cluster:
         print("Testing Connection for host '" + str(host) + "'")
-        print(command_runner.run_command(host, "echo 'Connection Succeeded'"))
+        print(command_runner.run_command(host, "echo 'Connection Succeeded'", configuration.get_raw_pass_word()))
 
 
 def is_scheduler_running(args):

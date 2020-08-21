@@ -25,6 +25,7 @@ class FailoverController:
         self.metadata_service = metadata_service
         self.emailer = emailer
         self.logger = logger
+        self.configuration = configuration
 
     def poll(self):
         self.logger.info("--------------------------------------")
@@ -147,7 +148,9 @@ class FailoverController:
         grep_command_no_quotes = grep_command.replace("'", "")
         full_status_check_command = process_check_command + " | " + grep_command  # ps -eaf | grep 'airflow scheduler'
         is_running = False
-        is_successful, output = self.command_runner.run_command(host, full_status_check_command)
+        is_successful, output = self.command_runner.run_command(host,
+                                                                full_status_check_command,
+                                                                self.configuration.get_raw_pass_word())
         self.LATEST_FAILED_STATUS_MESSAGE = output
         if is_successful:
             active_list = []
@@ -169,13 +172,17 @@ class FailoverController:
 
     def startup_scheduler(self, host):
         self.logger.info("Starting Scheduler on host '" + str(host) + "'...")
-        is_successful, output = self.command_runner.run_command(host, self.airflow_scheduler_start_command)
+        is_successful, output = self.command_runner.run_command(host,
+                                                                self.airflow_scheduler_start_command,
+                                                                self.configuration.get_raw_pass_word())
         self.LATEST_FAILED_START_MESSAGE = output
         self.logger.info("Finished starting Scheduler on host '" + str(host) + "'")
 
     def shutdown_scheduler(self, host):
         self.logger.warning("Starting to shutdown Scheduler on host '" + host + "'...")
-        is_successful, output = self.command_runner.run_command(host, self.airflow_scheduler_stop_command)
+        is_successful, output = self.command_runner.run_command(host,
+                                                                self.airflow_scheduler_stop_command,
+                                                                self.configuration.get_raw_pass_word())
         self.LATEST_FAILED_SHUTDOWN_MESSAGE = output
         self.logger.warning("Finished shutting down Scheduler on host '" + host + "'")
 

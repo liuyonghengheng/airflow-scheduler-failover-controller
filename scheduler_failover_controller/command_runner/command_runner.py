@@ -12,12 +12,12 @@ class CommandRunner:
         self.logger = logger
 
     # returns: is_successful, output
-    def run_command(self, host, base_command):
+    def run_command(self, host, base_command, pass_word=None):
         self.logger.debug("Running Command: " + str(base_command))
         if host == self.local_hostname or host in self.HOST_LIST_TO_RUN_LOCAL:
             return self._run_local_command(base_command)
         else:
-            return self._run_ssh_command(host, base_command)
+            return self._run_ssh_command(host, base_command, pass_word)
 
     # This will start the process up as a child process. Meaning if the scheduler_failover_controller fails the child process will fail as well. (unless you're running the systemctl command)
     def _run_local_command(self, base_command):
@@ -28,12 +28,14 @@ class CommandRunner:
         self.logger.debug("Run Command output: " + str(output))
         return True, output
 
-    def _run_ssh_command(self, host, base_command):
+    def _run_ssh_command(self, host, base_command, pass_word=None):
         self.logger.debug("Running command as SSH command")
         if base_command.startswith("sudo"):
-            command_split = ["ssh", "-tt", host, base_command]
+            command_split = ["ssh", "-tt", "-o StrictHostKeyChecking=no", host, base_command]
         else:
-            command_split = ["ssh", host, base_command]
+            command_split = ["ssh", "-o StrictHostKeyChecking=no", host, base_command]
+        if pass_word is not None:
+            command_split = ['sshpass', '-p', pass_word] + command_split
         return self._run_split_command(
             command_split=command_split
         )
